@@ -1,37 +1,97 @@
 <template>
-  <div class="container">
-    <h2>对话 Agent（SSE，LangGraph + 百炼）</h2>
-
-    <div class="chat-window">
-      <div v-for="(m, idx) in messages" :key="idx" class="msg" :class="m.role">
-        <div class="role">{{ m.role === 'user' ? '你' : '助手' }}</div>
-        <div class="content">{{ m.content }}</div>
+  <div>
+    <div class="header">
+      <div class="brand">Hierarchical Agent Teams Demo</div>
+      <div class="lang-switcher">
+        <select v-model="lang" aria-label="language switcher">
+          <option value="zh">中文</option>
+          <option value="en">EN</option>
+        </select>
       </div>
     </div>
 
-    <form class="input-bar" @submit.prevent="onSend">
-      <input
-        v-model="input"
-        type="text"
-        placeholder="输入你的问题..."
-        :disabled="loading"
-      />
-      <button type="submit" :disabled="loading || !input.trim()">发送</button>
-      <button type="button" @click="onStop" :disabled="!loading">停止</button>
-    </form>
+    <div class="container">
+      <div class="chat-window" ref="chatWindowEl">
+        <div v-for="(m, idx) in messages" :key="idx" class="msg" :class="m.role">
+          <div
+            class="avatar"
+            :class="m.role"
+            role="img"
+            :aria-label="m.role === 'assistant' ? texts.assistant : texts.me"
+            :title="m.role === 'assistant' ? texts.assistant : texts.me"
+          >{{ m.role === 'assistant' ? '🤖' : '🧑' }}</div>
+          <div class="bubble">
+            <div v-if="isThinking(idx, m)" class="think">
+              <span class="think-text">{{ texts.thinking }}</span>
+              <span class="dots"><span></span><span></span><span></span></span>
+            </div>
+            <div v-else v-html="renderMarkdown(m.content)"></div>
+          </div>
+        </div>
+      </div>
+
+      <form class="input-bar" @submit.prevent="onSend">
+        <input
+          v-model="input"
+          type="text"
+          :placeholder="texts.placeholder"
+          :disabled="loading"
+        />
+        <button type="submit" :disabled="loading || !input.trim()">{{ texts.send }}</button>
+        <button type="button" @click="onStop" :disabled="!loading">{{ texts.stop }}</button>
+      </form>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { marked } from 'marked'
 
 const messages = ref([])
 const input = ref('')
 const loading = ref(false)
+const lang = ref('en')
 let source = null
+
+const texts = computed(() => {
+  if (lang.value === 'en') {
+    return {
+      me: 'You',
+      assistant: 'Assistant',
+      placeholder: 'Type your question...',
+      send: 'Send',
+      stop: 'Stop',
+      greeting: "Hello! I'm your assistant. Ask me anything.",
+      thinking: 'Thinking',
+    }
+  }
+  return {
+    me: '你',
+    assistant: '助手',
+    placeholder: '输入你的问题...',
+    send: '发送',
+    stop: '停止',
+    greeting: '你好！我是你的助手，有什么可以帮你？',
+    thinking: '正在思考',
+  }
+})
+
+const chatWindowEl = ref(null)
+
+onMounted(() => {
+  messages.value.push({ role: 'assistant', content: texts.value.greeting })
+  nextTick(() => scrollToBottom())
+})
+
+marked.setOptions({ gfm: true, breaks: true })
+function renderMarkdown(text) {
+  return marked.parse(text || '')
+}
 
 function startAssistantMessage() {
   messages.value.push({ role: 'assistant', content: '' })
+  scrollToBottom()
 }
 
 function appendToAssistant(token) {
@@ -39,6 +99,7 @@ function appendToAssistant(token) {
   if (last && last.role === 'assistant') {
     last.content += token
   }
+  scrollToBottom()
 }
 
 function onStop() {
@@ -57,6 +118,7 @@ function onSend() {
   input.value = ''
   startAssistantMessage()
   loading.value = true
+  scrollToBottom()
 
   const url = `/api/chat/stream?message=${encodeURIComponent(text)}`
   source = new EventSource(url)
@@ -81,32 +143,71 @@ function onSend() {
     onStop()
   }
 }
+
+function isThinking(index, message) {
+  return (
+    message.role === 'assistant' &&
+    loading.value === true &&
+    index === messages.value.length - 1 &&
+    (!message.content || message.content.length === 0)
+  )
+}
+
+function scrollToBottom() {
+  const el = chatWindowEl.value
+  if (!el) return
+  requestAnimationFrame(() => {
+    el.scrollTop = el.scrollHeight
+  })
+}
 </script>
 
 <style>
 :root {
-  --bg: #0b1020;
-  --card: #121731;
-  --text: #e7eaf6;
+  --bg: #000000;
+  --card: #0d0d0d;
+  --text: #eaeaea;
   --muted: #9aa3b2;
   --accent: #6b8afd;
 }
 
 * { box-sizing: border-box; }
 body { margin: 0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, 'Helvetica Neue', Arial; background: var(--bg); color: var(--text); }
-.container { max-width: 900px; margin: 0 auto; padding: 24px; }
+.container { margin: 0 auto; padding: 24px; }
+
+.header { position: sticky; top: 0; z-index: 10; backdrop-filter: blur(8px); background: rgba(0,0,0,0.6); border-bottom: 1px solid rgba(255,255,255,0.06); }
+.header { display: flex; align-items: center; justify-content: space-between; padding: 12px 20px; }
+.brand { font-weight: 700; letter-spacing: 0.3px; color: #ffffff; }
+.lang-switcher select { background: var(--card); color: var(--text); border: 1px solid rgba(255,255,255,0.12); border-radius: 8px; padding: 6px 10px; }
 
 h2 { margin: 0 0 16px; font-weight: 600; }
 
-.chat-window { background: var(--card); border-radius: 12px; padding: 16px; height: 60vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.25); }
-.msg { display: grid; grid-template-columns: 80px 1fr; gap: 8px 16px; padding: 12px 8px; border-bottom: 1px solid rgba(255,255,255,0.06); }
-.msg .role { color: var(--muted); font-size: 13px; }
-.msg .content { white-space: pre-wrap; line-height: 1.6; }
-.msg.user .content { color: #c5d1ff; }
-.msg.assistant .content { color: #d6f1ff; }
+.chat-window { background: var(--card); border-radius: 12px; padding: 16px; height: 80vh; overflow: auto; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+.msg { display: flex; padding: 8px 0; align-items: flex-start; gap: 10px; }
+.msg.assistant { justify-content: flex-start; }
+.msg.user { flex-direction: row-reverse; }
+.avatar { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 18px; line-height: 1; user-select: none; }
+.avatar.assistant { background: #1a1a1a; color: #eaeaea; border: 1px solid rgba(255,255,255,0.08); }
+.avatar.user { background: var(--accent); color: #ffffff; }
+.bubble { max-width: 80%; padding: 10px 12px; border-radius: 12px; line-height: 1.6; word-break: break-word; }
+.msg.assistant .bubble { background: #111111; color: var(--text); border: 1px solid rgba(255,255,255,0.08); }
+.msg.user .bubble { background: var(--accent); color: #ffffff; }
+.bubble p { margin: 0; }
+.bubble p + p { margin-top: 0.6em; }
+.bubble code { background: rgba(255,255,255,0.12); padding: 0.1em 0.3em; border-radius: 6px; }
+.bubble pre { background: rgba(255,255,255,0.08); padding: 10px; border-radius: 8px; overflow: auto; }
+
+/* thinking loading */
+.think { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); }
+.dots { display: inline-flex; gap: 4px; }
+.dots span { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.25; animation: blink 1.2s infinite ease-in-out; }
+.dots span:nth-child(1) { animation-delay: 0s; }
+.dots span:nth-child(2) { animation-delay: 0.2s; }
+.dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes blink { 0%, 100% { opacity: 0.25; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-1px); } }
 
 .input-bar { display: flex; gap: 8px; margin-top: 16px; }
-.input-bar input { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: #0e1430; color: var(--text); }
+.input-bar input { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: var(--card); color: var(--text); }
 .input-bar button { padding: 10px 12px; border-radius: 10px; border: none; background: var(--accent); color: white; cursor: pointer; }
 .input-bar button[disabled] { opacity: 0.6; cursor: not-allowed; }
 </style>
