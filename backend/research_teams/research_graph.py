@@ -1,12 +1,13 @@
-from backend.utils.supervisor import State
+from utils.supervisor import State
 from langgraph.graph import StateGraph, START
-from research_agent import research_supervisor_node, search_node, web_scraper_node
+from research_teams.research_agent import build_research_team
 
 
-research_builder = StateGraph(State)
-research_builder.add_node("supervisor", research_supervisor_node)
-research_builder.add_node("search", search_node)
-research_builder.add_node("web_scraper", web_scraper_node)
-
-research_builder.add_edge(START, "supervisor")
-research_graph = research_builder.compile()
+def build_research_graph(llm):
+	research_supervisor_node, search_node, web_scraper_node = build_research_team(llm)
+	builder = StateGraph(State)
+	builder.add_node("supervisor", research_supervisor_node)
+	builder.add_node("search", search_node)
+	builder.add_node("web_scraper", web_scraper_node)
+	builder.add_edge(START, "supervisor")
+	return builder.compile()

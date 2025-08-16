@@ -25,7 +25,9 @@
               <span class="think-text">{{ texts.thinking }}</span>
               <span class="dots"><span></span><span></span><span></span></span>
             </div>
-            <div v-else v-html="renderMarkdown(m.content)"></div>
+            <div v-else>
+              <div v-html="renderMarkdown(m.content)"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -64,6 +66,12 @@ const texts = computed(() => {
       stop: 'Stop',
       greeting: "Hello! I'm your assistant. Ask me anything.",
       thinking: 'Thinking',
+      steps: 'Execution Steps',
+      workflow: 'Workflow Path',
+      supervisor: 'Supervisor',
+      reason: 'Reason',
+      research: 'Research',
+      writing: 'Writing',
     }
   }
   return {
@@ -74,6 +82,12 @@ const texts = computed(() => {
     stop: '停止',
     greeting: '你好！我是你的助手，有什么可以帮你？',
     thinking: '正在思考',
+    steps: '执行步骤',
+    workflow: '工作流路径',
+    supervisor: '路由器',
+    reason: '原因',
+    research: '研究',
+    writing: '写作',
   }
 })
 
@@ -210,4 +224,147 @@ h2 { margin: 0 0 16px; font-weight: 600; }
 .input-bar input { flex: 1; padding: 12px 14px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.1); background: var(--card); color: var(--text); }
 .input-bar button { padding: 10px 12px; border-radius: 10px; border: none; background: var(--accent); color: white; cursor: pointer; }
 .input-bar button[disabled] { opacity: 0.6; cursor: not-allowed; }
+
+/* steps */
+.steps { margin-top: 12px; padding-top: 8px; border-top: 1px dashed rgba(255,255,255,0.12); }
+.steps-title { font-size: 12px; color: var(--muted); margin-bottom: 6px; }
+
+/* workflow overview */
+.workflow-overview {
+  background: linear-gradient(135deg, rgba(107,138,253,0.06), rgba(52,199,89,0.04));
+  border: 1px solid rgba(107,138,253,0.15);
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+}
+
+.workflow-title {
+  font-size: 11px;
+  color: var(--accent);
+  font-weight: 600;
+  margin-bottom: 10px;
+  text-align: center;
+}
+
+.workflow-path {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.workflow-step {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-node {
+  background: rgba(255,255,255,0.08);
+  color: var(--muted);
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 500;
+  transition: all 0.3s ease;
+  border: 1px solid transparent;
+}
+
+.workflow-node.active {
+  background: linear-gradient(135deg, rgba(107,138,253,0.3), rgba(107,138,253,0.5));
+  color: #ffffff;
+  border-color: rgba(107,138,253,0.4);
+  box-shadow: 0 2px 8px rgba(107,138,253,0.2);
+}
+
+.workflow-node.completed {
+  background: linear-gradient(135deg, rgba(52,199,89,0.3), rgba(52,199,89,0.5));
+  color: #ffffff;
+  border-color: rgba(52,199,89,0.4);
+  box-shadow: 0 2px 8px rgba(52,199,89,0.2);
+}
+
+.workflow-connector {
+  color: var(--accent);
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.step-item { margin-bottom: 10px; }
+.step-item.route { 
+  background: linear-gradient(135deg, rgba(107,138,253,0.08), rgba(52,199,89,0.06)); 
+  border: 1px solid rgba(107,138,253,0.2); 
+  padding: 12px; 
+  border-radius: 12px;
+  backdrop-filter: blur(8px);
+}
+
+.step-head { display: inline-flex; gap: 6px; align-items: center; margin-bottom: 6px; }
+.step-head.route-step { flex-direction: column; align-items: stretch; gap: 8px; }
+
+.route-badges { 
+  display: flex; 
+  align-items: center; 
+  gap: 8px; 
+  justify-content: center;
+}
+
+.route-arrow { 
+  color: var(--accent); 
+  font-size: 16px; 
+  font-weight: bold;
+  text-shadow: 0 0 8px rgba(107,138,253,0.3);
+}
+
+.route-description {
+  font-size: 11px;
+  color: var(--muted);
+  text-align: center;
+  background: rgba(255,255,255,0.04);
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-style: italic;
+}
+
+.route-reason {
+  font-size: 10px;
+  color: var(--muted);
+  text-align: center;
+  margin-top: 4px;
+}
+
+.reason-label {
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.workflow-status {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.status-item {
+  color: var(--muted);
+  transition: color 0.2s;
+}
+
+.status-item.completed {
+  color: #34c759;
+}
+
+.badge { font-size: 11px; background: rgba(255,255,255,0.12); color: var(--text); border-radius: 6px; padding: 2px 6px; }
+.badge.node { background: rgba(107,138,253,0.35); }
+.badge.team { background: rgba(255,149,0,0.35); color: #ffffff; }
+.badge.sup { background: rgba(255,255,255,0.18); font-weight: 600; }
+.badge.dest { 
+  background: linear-gradient(135deg, rgba(52,199,89,0.4), rgba(52,199,89,0.6)); 
+  color: #ffffff;
+  font-weight: 600;
+  box-shadow: 0 2px 8px rgba(52,199,89,0.2);
+}
+.step-body { font-size: 14px; }
 </style>
