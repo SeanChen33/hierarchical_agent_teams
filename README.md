@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## Project Overview
 
 This is a hierarchical agent teams system built with LangGraph that implements multi-agent collaboration for research and document generation tasks. The system uses a supervisor pattern to coordinate between different agent teams.
