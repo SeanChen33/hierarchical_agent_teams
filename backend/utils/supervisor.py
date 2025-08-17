@@ -208,11 +208,27 @@ def make_supervisor_node(llm: BaseChatModel, members: List[str]):
 	options = ["COMPLETE"] + members
 	
 	def analyze_task_complexity(messages: List) -> str:
-		"""Analyze if task needs research or can go directly to document team."""
+		"""Analyze if task needs research, document team, or direct answer."""
 		if not messages:
 			return "research_team"
 
 		user_message = messages[0].content.lower() if messages else ""
+		user_words = user_message.strip().split()
+
+		# Simple greetings and basic interactions should get direct answers
+		simple_interactions = [
+			"hi", "hello", "hey", "good morning", "good afternoon", "good evening",
+			"你好", "嗨", "早上好", "下午好", "晚上好", "how are you", "what's up",
+			"sup", "greetings", "howdy", "thanks", "thank you", "谢谢", "再见", "bye",
+			"goodbye", "what is", "what are", "who is", "who are", "how to", "why",
+			"when", "where", "explain", "define", "tell me about"
+		]
+
+		# Check if this is a simple interaction (should be answered directly)
+		if len(user_words) <= 5:  # Short questions/greetings
+			for interaction in simple_interactions:
+				if interaction in user_message:
+					return "direct_answer"
 
 		# Keywords indicating simple document tasks
 		simple_doc_keywords = [
@@ -237,6 +253,10 @@ def make_supervisor_node(llm: BaseChatModel, members: List[str]):
 		for keyword in simple_doc_keywords:
 			if keyword in user_message:
 				return "writing_team"
+
+		# For short, simple questions, provide direct answers
+		if len(user_words) <= 10 and any(word in user_message for word in ["what", "how", "why", "when", "where", "who", "什么", "怎么", "为什么", "什么时候", "哪里", "谁"]):
+			return "direct_answer"
 
 		# Default to research for complex/ambiguous tasks
 		return "research_team"
@@ -277,7 +297,32 @@ def make_supervisor_node(llm: BaseChatModel, members: List[str]):
 		elif not research_completed and not writing_completed:
 			# Initial routing - analyze task complexity
 			task_route = analyze_task_complexity(messages)
-			goto = task_route
+
+			# Handle direct answers for simple questions
+			if task_route == "direct_answer":
+				from langchain_core.messages import AIMessage
+
+				# Set context for direct response
+				current_team.set("final")
+
+				# Generate direct response using LLM
+				user_msg = messages[0].content if messages else ""
+				direct_prompt = f"""You are a helpful AI assistant. Please provide a direct, concise answer to the user's question or greeting: "{user_msg}"
+
+Keep your response natural, friendly, and appropriate to the context. For greetings, respond warmly. For simple questions, provide clear, helpful answers."""
+
+				try:
+					response = llm.invoke([{"role": "system", "content": direct_prompt}])
+					return Command(
+						update={"messages": [AIMessage(content=response.content)]},
+						goto=END
+					)
+				except Exception as e:
+					logger.error(f"Direct answer generation failed: {e}")
+					# Fallback to writing team
+					goto = "writing_team"
+			else:
+				goto = task_route
 		else:
 			# Fallback
 			goto = END
