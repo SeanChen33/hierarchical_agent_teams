@@ -1,4 +1,4 @@
-from typing import List, Literal, TypedDict
+from typing import List, Literal
 import json
 import logging
 from langchain_core.language_models.chat_models import BaseChatModel  # type: ignore
@@ -46,9 +46,6 @@ def make_team_supervisor_node(llm: BaseChatModel, members: List[str], team_name:
 		"- Complete when team objectives are fully accomplished\n\n"
 		"Respond in JSON format: {\"next\": \"agent_name\"} or {\"next\": \"COMPLETE\"}"
 	)
-
-	class Router(TypedDict):
-		next: Literal[*options]
 
 	def team_supervisor_node(state: State) -> Command[Literal[*members, "__end__"]]:
 		"""Enhanced team supervisor with intelligent coordination and quality control."""
@@ -164,7 +161,7 @@ def _route_to_next_agent(llm, system_prompt: str, members: List[str], messages, 
 		"Respond in JSON format: {\"next\": \"agent_name\"} or {\"next\": \"COMPLETE\"}",
 		"Analyze the task and decide which agent should handle it next. "
 		"Consider the task complexity and agent specializations. "
-		"Respond with ONLY the agent name (one of: " + ", ".join(members) + ") or COMPLETE."
+		"Respond with a JSON object containing the agent name (one of: " + ", ".join(members) + ") or COMPLETE."
 	)
 	
 	routing_messages = [
@@ -172,28 +169,20 @@ def _route_to_next_agent(llm, system_prompt: str, members: List[str], messages, 
 	] + messages
 	
 	try:
-		# Try structured output first (internal only)
-		class Router(TypedDict):
-			next: Literal[*["COMPLETE"] + members]
+		# Use simple text response and parse (more reliable)
+		response = llm.invoke(routing_messages)
+		content = response.content.strip().lower()
 
-		try:
-			response = llm.with_structured_output(Router).invoke(routing_messages)
-			goto = response.get("next", members[0] if members else "COMPLETE")
-		except Exception:
-			# Fallback to text response and parse
-			response = llm.invoke(routing_messages)
-			content = response.content.strip().lower()
+		# Simple keyword matching for agent selection
+		goto = "COMPLETE"
+		for member in members:
+			if member.lower() in content:
+				goto = member
+				break
 
-			# Simple keyword matching for agent selection
-			goto = "COMPLETE"
-			for member in members:
-				if member.lower() in content:
-					goto = member
-					break
-
-			if goto == "COMPLETE" and members:
-				# Default to first agent if no clear decision
-				goto = members[0]
+		if goto == "COMPLETE" and members:
+			# Default to first agent if no clear decision
+			goto = members[0]
 
 	except Exception as e:
 		logger.warning(f"Routing decision failed for {team_name}, using fallback: {e}")
@@ -260,11 +249,8 @@ def make_supervisor_node(llm: BaseChatModel, members: List[str]):
 		"2. Research/information gathering tasks → research_team first\n"
 		"3. After research_team completes → writing_team for documentation\n"
 		"4. After writing_team completes → COMPLETE\n"
-		"Respond in JSON format with the next team."
+		"Respond with a JSON object containing the next team."
 	)
-
-	class Router(TypedDict):
-		next: Literal[*options]
 
 	def supervisor_node(state: State) -> Command[Literal[*members, "__end__"]]:
 		"""Intelligent task router."""
@@ -302,11 +288,13 @@ def make_supervisor_node(llm: BaseChatModel, members: List[str]):
 				{"role": "system", "content": system_prompt},
 			] + messages
 			try:
-				response = llm.with_structured_output(Router).invoke(routing_messages)
-				llm_goto = response.get("next", goto)
-				# Only override if LLM suggests a valid team
-				if llm_goto in members:
-					goto = llm_goto
+				response = llm.invoke(routing_messages)
+				content = response.content.strip().lower()
+				# Simple keyword matching for team selection
+				for member in members:
+					if member.lower() in content:
+						goto = member
+						break
 			except Exception:
 				pass  # Keep the analyzed route
 		
